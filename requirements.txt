@@ -6,6 +6,10 @@ scikit-learn
 regex
 pickle-mixin
 openai-whisper
+ffmpeg-python
+
+
+
 
 
 
