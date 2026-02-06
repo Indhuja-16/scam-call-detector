@@ -27,7 +27,7 @@ def load_whisper_model():
 @st.cache_resource
 def load_scam_model():
     try:
-        model_path = os.path.join(os.getcwd(), "scam_model_lstm.keras")
+        model_path = "scam_model_lstm.keras"
         model = tf.keras.models.load_model(model_path, compile=False)
         return model
     except Exception as e:
@@ -38,8 +38,7 @@ def load_scam_model():
 @st.cache_resource
 def load_tokenizer():
     try:
-        tokenizer_path = os.path.join(os.getcwd(), "tokenizer.pkl")
-        with open(tokenizer_path, "rb") as f:
+        with open("tokenizer.pkl", "rb") as f:
             tokenizer = pickle.load(f)
         return tokenizer
     except Exception as e:
@@ -59,45 +58,57 @@ def clean_text(text):
 
 # ---------------- UI ----------------
 st.title("🚨 Scam Call Detection System")
-st.markdown("**Whisper + LSTM based Audio Scam Detection**")
-st.markdown("### Upload Call Recording (MP3 / WAV)")
+st.markdown("Whisper + LSTM based Audio Scam Detection")
+
+st.markdown("### Upload Call Recording (Prefer WAV format)")
 
 audio_file = st.file_uploader(
     "Upload audio file",
-    type=["mp3", "wav"]
+    type=["wav", "mp3"]
 )
 
 transcript = ""
 
-# ---------------- AUDIO TRANSCRIPTION ----------------
+# ---------------- AUDIO PROCESS ----------------
 if audio_file is not None:
 
     st.audio(audio_file)
 
-    # Save temp audio
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as tmp:
+    # Save temp file
+    suffix = ".wav" if audio_file.type == "audio/wav" else ".mp3"
+
+    with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
         tmp.write(audio_file.getbuffer())
         temp_audio_path = tmp.name
 
-    # Transcribe using Whisper
-    with st.spinner("🎧 Transcribing audio using Whisper..."):
-        transcript = whisper_model.transcribe(temp_audio_path)["text"]
+    # Transcribe safely
+    try:
+        with st.spinner("Transcribing audio..."):
+            result = whisper_model.transcribe(
+                temp_audio_path,
+                fp16=False
+            )
+            transcript = result["text"]
 
-    # Delete temp file
+    except Exception as e:
+        st.error("Audio processing failed. Try WAV file.")
+        st.stop()
+
+    # Remove temp file
     if os.path.exists(temp_audio_path):
         os.remove(temp_audio_path)
 
-    st.subheader("📝 Transcribed Text")
+    st.subheader("Transcribed Text")
     st.write(transcript)
 
 # ---------------- PREDICTION ----------------
-if st.button("🔍 Predict Scam"):
+if st.button("Predict Scam"):
 
     if model is None or tokenizer is None:
-        st.error("Model or Tokenizer not loaded properly.")
+        st.error("Model or Tokenizer not loaded properly")
 
     elif transcript.strip() == "":
-        st.warning("Please upload an audio file first.")
+        st.warning("Upload audio first")
 
     else:
         try:
@@ -107,7 +118,7 @@ if st.button("🔍 Predict Scam"):
 
             probability = float(model.predict(padded_seq)[0][0])
 
-            st.subheader("📊 Prediction Result")
+            st.subheader("Prediction Result")
 
             if probability >= THRESHOLD:
                 st.error("🚨 SCAM CALL DETECTED")
@@ -120,4 +131,4 @@ if st.button("🔍 Predict Scam"):
             st.error(f"Prediction Error: {e}")
 
 st.markdown("---")
-st.caption("Model: LSTM | Speech-to-Text: Whisper | Threshold = 0.3")
+st.caption("Model: LSTM | Speech-to-Text: Whisper")
