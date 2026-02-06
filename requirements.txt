@@ -1,7 +1,9 @@
 streamlit
+tensorflow==2.15.0
+keras==2.15.0
 numpy
+pandas
+scikit-learn
 regex
-tensorflow==2.20.0
-keras
+pickle-mixin
 openai-whisper
-ffmpeg-python
