@@ -11,17 +11,19 @@ from tensorflow.keras.preprocessing.sequence import pad_sequences
 MAX_LEN = 50
 THRESHOLD = 0.3
 
+# ---------------- PAGE CONFIG ----------------
 st.set_page_config(
     page_title="Scam Call Detector",
     page_icon="🚨",
     layout="centered"
 )
 
-# ---------------- LOAD MODELS ----------------
+# ---------------- LOAD WHISPER MODEL ----------------
 @st.cache_resource
 def load_whisper_model():
     return whisper.load_model("base")
 
+# ---------------- LOAD SCAM MODEL ----------------
 @st.cache_resource
 def load_scam_model():
     try:
@@ -32,6 +34,7 @@ def load_scam_model():
         st.error(f"Model Loading Error: {e}")
         return None
 
+# ---------------- LOAD TOKENIZER ----------------
 @st.cache_resource
 def load_tokenizer():
     try:
@@ -48,7 +51,7 @@ whisper_model = load_whisper_model()
 model = load_scam_model()
 tokenizer = load_tokenizer()
 
-# ---------------- TEXT CLEAN ----------------
+# ---------------- TEXT CLEAN FUNCTION ----------------
 def clean_text(text):
     text = text.lower()
     text = re.sub(r"[^a-zA-Z ]", "", text)
@@ -66,9 +69,55 @@ audio_file = st.file_uploader(
 
 transcript = ""
 
-# ---------------- TRANSCRIPTION ----------------
+# ---------------- AUDIO TRANSCRIPTION ----------------
 if audio_file is not None:
 
     st.audio(audio_file)
 
-    with tempfile.NamedTe
+    # Save temp audio
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as tmp:
+        tmp.write(audio_file.getbuffer())
+        temp_audio_path = tmp.name
+
+    # Transcribe using Whisper
+    with st.spinner("🎧 Transcribing audio using Whisper..."):
+        transcript = whisper_model.transcribe(temp_audio_path)["text"]
+
+    # Delete temp file
+    if os.path.exists(temp_audio_path):
+        os.remove(temp_audio_path)
+
+    st.subheader("📝 Transcribed Text")
+    st.write(transcript)
+
+# ---------------- PREDICTION ----------------
+if st.button("🔍 Predict Scam"):
+
+    if model is None or tokenizer is None:
+        st.error("Model or Tokenizer not loaded properly.")
+
+    elif transcript.strip() == "":
+        st.warning("Please upload an audio file first.")
+
+    else:
+        try:
+            cleaned_text = clean_text(transcript)
+            seq = tokenizer.texts_to_sequences([cleaned_text])
+            padded_seq = pad_sequences(seq, maxlen=MAX_LEN)
+
+            probability = float(model.predict(padded_seq)[0][0])
+
+            st.subheader("📊 Prediction Result")
+
+            if probability >= THRESHOLD:
+                st.error("🚨 SCAM CALL DETECTED")
+            else:
+                st.success("✅ NOT A SCAM CALL")
+
+            st.metric("Scam Probability", f"{probability:.2f}")
+
+        except Exception as e:
+            st.error(f"Prediction Error: {e}")
+
+st.markdown("---")
+st.caption("Model: LSTM | Speech-to-Text: Whisper | Threshold = 0.3")
