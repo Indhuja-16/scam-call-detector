@@ -1,0 +1,7 @@
+streamlit
+tensorflow
+numpy
+torch
+openai-whisper
+ffmpeg-python
+regex
